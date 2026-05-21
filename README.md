@@ -1,4 +1,3 @@
 
   # Phrases Detective Game
 
-  This is a code bundle for Phrases Detective Game.
