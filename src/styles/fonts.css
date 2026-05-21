@@ -1,0 +1,4 @@
+@import './tailwind.css';
+@import './theme.css';
+
+/* Liniju @import './fonts.css'; smo potpuno izbrisali jer je taj fajl prazan i pravio je grešku */
