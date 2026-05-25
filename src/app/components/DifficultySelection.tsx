@@ -9,24 +9,29 @@ interface DifficultySelectionProps {
 
 export function DifficultySelection({ players, onDifficultySelect, onBack }: DifficultySelectionProps) {
   return (
-    <div className="size-full flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-      <div className="max-w-5xl w-full">
+    // Promijenjeno u w-screen h-screen kako bi zauzelo tačno cijeli prozor ekrana
+    <div className="w-screen h-screen flex items-center justify-center p-6 md:p-12 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 overflow-y-auto">
+      {/* Uklonjen max-w-5xl i postavljen w-full da se raširi do ivica */}
+      <div className="w-full h-full flex flex-col justify-center max-w-[100vw]">
+        
         {/* Back Button */}
-        <motion.button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-8 sm:mb-12 transition-colors font-medium group px-4"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          whileHover={{ x: -5 }}
-        >
-          <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="hidden sm:inline">Nazad na izbor moda</span>
-          <span className="sm:hidden">Nazad</span>
-        </motion.button>
+        <div className="w-full max-w-7xl mx-auto px-4">
+          <motion.button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition-colors font-medium group"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            whileHover={{ x: -5 }}
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+            <span className="hidden sm:inline">Nazad na izbor moda</span>
+            <span className="sm:hidden">Nazad</span>
+          </motion.button>
+        </div>
 
         {/* Header */}
         <motion.div
-          className="text-center mb-8 sm:mb-12 px-4"
+          className="text-center mb-10 px-4"
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -39,33 +44,35 @@ export function DifficultySelection({ players, onDifficultySelect, onBack }: Dif
           </p>
         </motion.div>
 
-        {/* Difficulty Cards */}
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 px-4">
+        {/* Difficulty Cards - Sada se šire fleksibilno kroz h-full */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-7xl mx-auto px-4 items-stretch">
           {/* Easy */}
           <motion.button
             onClick={() => onDifficultySelect('easy')}
-            className="group relative bg-white rounded-3xl p-6 sm:p-8 text-center hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-emerald-400 overflow-hidden"
+            className="group relative bg-white rounded-3xl p-8 text-center hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-emerald-400 overflow-hidden flex flex-col justify-between items-center min-h-[250px]"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            whileHover={{ scale: 1.05, y: -5 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03, y: -5 }}
+            whileTap={{ scale: 0.98 }}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/10 to-green-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-            <div className="relative z-10">
+            <div className="relative z-10 w-full flex flex-col h-full justify-between items-center gap-4">
               <motion.div
-                className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-emerald-400 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg"
+                className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-emerald-400 to-green-500 rounded-2xl flex items-center justify-center shadow-lg"
                 whileHover={{ rotate: [0, -10, 10, -10, 0] }}
                 transition={{ duration: 0.5 }}
               >
                 <Zap className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </motion.div>
-              <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 sm:mb-3">Lako</h3>
-              <p className="text-sm sm:text-base text-slate-600 mb-4 sm:mb-6 leading-relaxed">
-                Jednostavne fraze i direktna pitanja za početnike
-              </p>
-              <div className="flex gap-2 justify-center">
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Lako</h3>
+                <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xs mx-auto">
+                  Jednostavne fraze i direktna pitanja za početnike
+                </p>
+              </div>
+              <div className="flex gap-2 justify-center mt-2">
                 <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-slate-200 rounded-full"></div>
                 <div className="w-3 h-3 bg-slate-200 rounded-full"></div>
@@ -76,28 +83,30 @@ export function DifficultySelection({ players, onDifficultySelect, onBack }: Dif
           {/* Medium */}
           <motion.button
             onClick={() => onDifficultySelect('medium')}
-            className="group relative bg-white rounded-3xl p-6 sm:p-8 text-center hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-amber-400 overflow-hidden"
+            className="group relative bg-white rounded-3xl p-8 text-center hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-amber-400 overflow-hidden flex flex-col justify-between items-center min-h-[250px]"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            whileHover={{ scale: 1.05, y: -5 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03, y: -5 }}
+            whileTap={{ scale: 0.98 }}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-amber-400/10 to-orange-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-            <div className="relative z-10">
+            <div className="relative z-10 w-full flex flex-col h-full justify-between items-center gap-4">
               <motion.div
-                className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg"
+                className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg"
                 whileHover={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 0.4 }}
               >
                 <Brain className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </motion.div>
-              <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 sm:mb-3">Srednje</h3>
-              <p className="text-sm sm:text-base text-slate-600 mb-4 sm:mb-6 leading-relaxed">
-                Umereni izazov sa složenijim frazama
-              </p>
-              <div className="flex gap-2 justify-center">
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Srednje</h3>
+                <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xs mx-auto">
+                  Umereni izazov sa složenijim frazama
+                </p>
+              </div>
+              <div className="flex gap-2 justify-center mt-2">
                 <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-slate-200 rounded-full"></div>
@@ -108,18 +117,18 @@ export function DifficultySelection({ players, onDifficultySelect, onBack }: Dif
           {/* Hard */}
           <motion.button
             onClick={() => onDifficultySelect('hard')}
-            className="group relative bg-white rounded-3xl p-6 sm:p-8 text-center hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-rose-400 overflow-hidden sm:col-span-2 md:col-span-1"
+            className="group relative bg-white rounded-3xl p-8 text-center hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-rose-400 overflow-hidden flex flex-col justify-between items-center min-h-[250px]"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            whileHover={{ scale: 1.05, y: -5 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03, y: -5 }}
+            whileTap={{ scale: 0.98 }}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-rose-400/10 to-pink-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-            <div className="relative z-10">
+            <div className="relative z-10 w-full flex flex-col h-full justify-between items-center gap-4">
               <motion.div
-                className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-rose-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg"
+                className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-rose-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg"
                 animate={{
                   y: [0, -5, 0],
                 }}
@@ -131,11 +140,13 @@ export function DifficultySelection({ players, onDifficultySelect, onBack }: Dif
               >
                 <Flame className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </motion.div>
-              <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 sm:mb-3">Teško</h3>
-              <p className="text-sm sm:text-base text-slate-600 mb-4 sm:mb-6 leading-relaxed">
-                Složene fraze za iskusne detektive
-              </p>
-              <div className="flex gap-2 justify-center">
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Teško</h3>
+                <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xs mx-auto">
+                  Složene fraze za iskusne detektive
+                </p>
+              </div>
+              <div className="flex gap-2 justify-center mt-2">
                 <div className="w-3 h-3 bg-rose-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-rose-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-rose-500 rounded-full"></div>
