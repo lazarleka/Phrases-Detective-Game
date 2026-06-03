@@ -10,28 +10,27 @@ interface DifficultySelectionProps {
 export function DifficultySelection({ players, onDifficultySelect, onBack }: DifficultySelectionProps) {
   return (
     // Promijenjeno u w-screen h-screen kako bi zauzelo tačno cijeli prozor ekrana
-    <div className="w-screen h-screen flex items-center justify-center p-6 md:p-12 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 overflow-y-auto">
+    <div className="w-screen min-h-screen flex items-start md:items-center justify-center p-4 sm:p-6 md:p-12 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 overflow-y-auto">
       {/* Uklonjen max-w-5xl i postavljen w-full da se raširi do ivica */}
-      <div className="w-full h-full flex flex-col justify-center max-w-[100vw]">
+      <div className="w-full min-h-screen md:min-h-0 flex flex-col justify-start md:justify-center max-w-[100vw] py-3 md:py-0">
         
         {/* Back Button */}
-        <div className="w-full max-w-7xl mx-auto px-4">
+        <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 sticky top-0 z-20 bg-gradient-to-br from-slate-50/95 via-blue-50/95 to-purple-50/95 backdrop-blur-sm py-2 md:static md:bg-transparent md:backdrop-blur-0">
           <motion.button
             onClick={onBack}
-            className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition-colors font-medium group"
+            className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors font-semibold group text-sm sm:text-base"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             whileHover={{ x: -5 }}
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            <span className="hidden sm:inline">Nazad na izbor moda</span>
-            <span className="sm:hidden">Nazad</span>
+            <span>Nazad na izbor moda</span>
           </motion.button>
         </div>
 
         {/* Header */}
         <motion.div
-          className="text-center mb-10 px-4"
+          className="text-center mb-6 sm:mb-10 px-4 pt-2 md:pt-0"
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}

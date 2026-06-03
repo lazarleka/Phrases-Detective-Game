@@ -11,6 +11,77 @@ interface Question {
   correctAnswer: number;
 }
 
+function placeCorrectAnswerAtPosition(question: Question, targetPosition: number): Question {
+  if (!Array.isArray(question.options) || question.options.length < 4) {
+    return question;
+  }
+
+  const currentCorrectAnswer = Number(question.correctAnswer);
+  if (currentCorrectAnswer < 0 || currentCorrectAnswer >= question.options.length) {
+    return question;
+  }
+
+  const correctOption = question.options[currentCorrectAnswer];
+  const wrongOptions = question.options.filter((_, index) => index !== currentCorrectAnswer).slice(0, 3);
+  const options = [...wrongOptions];
+
+  options.splice(targetPosition, 0, correctOption);
+
+  return {
+    ...question,
+    options,
+    correctAnswer: targetPosition,
+  };
+}
+
+function randomizeCorrectAnswerPositions(questions: Question[]): Question[] {
+  let previousPosition = -1;
+
+  return questions.map((question) => {
+    const availablePositions = [0, 1, 2, 3].filter((position) => position !== previousPosition);
+    const targetPosition = availablePositions[Math.floor(Math.random() * availablePositions.length)];
+    previousPosition = targetPosition;
+
+    return placeCorrectAnswerAtPosition(question, targetPosition);
+  });
+}
+
+function playAnswerSound(isCorrect: boolean) {
+  if (typeof window === 'undefined') return;
+
+  const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextCtor) return;
+
+  const audioContext = new AudioContextCtor();
+  const now = audioContext.currentTime;
+
+  const playTone = (frequency: number, start: number, duration: number, volume: number) => {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    oscillator.type = isCorrect ? 'sine' : 'triangle';
+    oscillator.frequency.setValueAtTime(frequency, start);
+    gain.gain.setValueAtTime(0.001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration + 0.02);
+  };
+
+  if (isCorrect) {
+    playTone(523.25, now, 0.14, 0.06);
+    playTone(659.25, now + 0.08, 0.14, 0.07);
+    playTone(783.99, now + 0.16, 0.2, 0.08);
+    window.setTimeout(() => audioContext.close(), 450);
+  } else {
+    playTone(220, now, 0.18, 0.08);
+    window.setTimeout(() => audioContext.close(), 260);
+  }
+}
+
 // Definisanje props-a za glavnu GamePlay komponentu
 interface GamePlayProps {
   difficulty: 'easy' | 'medium' | 'hard';
@@ -25,7 +96,7 @@ async function fetchQuestionsFromAI(difficulty: 'easy' | 'medium' | 'hard', play
     hard: 'less common or complex English idioms and phrases (advanced level)',
   }[difficulty];
 
-  const prompt = `Generate exactly 10 multiple choice questions about ${difficultyDesc}.
+  const prompt = `Generate exactly ${QUESTIONS_PER_PLAYER} multiple choice questions about ${difficultyDesc}.
 ${playerNum ? `These are for Player ${playerNum} - use completely different phrases than other players.` : ''}
 
 Return ONLY a valid JSON array, no other text.
@@ -33,8 +104,13 @@ Return ONLY a valid JSON array, no other text.
 Each question must have:
 - phrase: the English idiom or phrase
 - question: a question in Serbian asking what it means
-- options: array of exactly 4 answer choices in Serbian
+- options: array of exactly 4 answer choices in Serbian, never 3 and never 5
 - correctAnswer: index (0-3) of the correct option
+
+Rules for answer choices:
+- The 3 incorrect options must be plausible Serbian meanings for a similar idiom or phrase.
+- Do not use silly, random, or obviously wrong distractors.
+- Keep all 4 options similar in length and style so the correct answer is not easy to guess.
 
 Example:
 [{"phrase":"Break a leg","question":"Šta ova fraza znači?","options":["Povredi se","Srećno","Trči brzo","Pleši"],"correctAnswer":1}]`;
@@ -87,7 +163,7 @@ Example:
     text = text.substring(start, end + 1);
   }
 
-  return JSON.parse(text) as Question[];
+  return randomizeCorrectAnswerPositions(JSON.parse(text) as Question[]);
 }
 
 function LoadingScreen({ message }: { message: string }) {
@@ -131,10 +207,32 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [gameFinished, setGameFinished] = useState<boolean>(false);
+  const [missedQuestions, setMissedQuestions] = useState<Question[]>([]);
+  const [isReviewMode, setIsReviewMode] = useState<boolean>(false);
+  const [reviewOriginalPlayer1Questions, setReviewOriginalPlayer1Questions] = useState<Question[]>([]);
+  const [reviewOriginalPlayer2Questions, setReviewOriginalPlayer2Questions] = useState<Question[]>([]);
+  const [reviewOriginalPlayers, setReviewOriginalPlayers] = useState<1 | 2>(1);
+  const [reviewQuestionCount, setReviewQuestionCount] = useState<number>(0);
+  const [showAnswers, setShowAnswers] = useState<boolean>(false);
 
   const loadQuestions = async () => {
     setLoading(true);
     setError(false);
+    setMissedQuestions([]);
+    setIsReviewMode(false);
+    setReviewOriginalPlayer1Questions([]);
+    setReviewOriginalPlayer2Questions([]);
+    setReviewOriginalPlayers(players);
+    setReviewQuestionCount(0);
+    setShowAnswers(false);
+    setCurrentQuestionIndex(0);
+    setCurrentPlayer(1);
+    setPlayer1Score(0);
+    setPlayer2Score(0);
+    setSelectedAnswer(null);
+    setIsAnswered(false);
+    setTimeLeft(30);
+    setGameFinished(false);
     try {
       if (players === 2) {
         const [q1, q2] = await Promise.all([
@@ -158,6 +256,7 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
     loadQuestions();
   }, []);
 
+  const effectivePlayers = isReviewMode ? 1 : players;
   const questions = currentPlayer === 1 ? player1Questions : player2Questions;
   const currentQuestion = questions[currentQuestionIndex];
 
@@ -175,7 +274,36 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
     return () => clearInterval(timer);
   }, [isAnswered, currentQuestionIndex, gameFinished, loading, currentPlayer, currentQuestion]);
 
+  const rememberMissedQuestion = () => {
+    if (!currentQuestion) return;
+    setMissedQuestions((previous) => [...previous, currentQuestion]);
+  };
+
+  const startReviewMode = () => {
+    if (missedQuestions.length === 0) return;
+
+    setReviewOriginalPlayer1Questions(player1Questions);
+    setReviewOriginalPlayer2Questions(player2Questions);
+    setReviewOriginalPlayers(players);
+    setReviewQuestionCount(missedQuestions.length);
+    setPlayer1Questions(randomizeCorrectAnswerPositions(missedQuestions));
+    setPlayer2Questions([]);
+    setCurrentPlayer(1);
+    setCurrentQuestionIndex(0);
+    setPlayer1Score(0);
+    setPlayer2Score(0);
+    setSelectedAnswer(null);
+    setIsAnswered(false);
+    setTimeLeft(30);
+    setGameFinished(false);
+    setIsReviewMode(true);
+    setShowAnswers(false);
+    setMissedQuestions([]);
+  };
+
   const handleTimeout = () => {
+    playAnswerSound(false);
+    rememberMissedQuestion();
     setIsAnswered(true);
     setTimeout(() => moveToNextQuestion(), 2000);
   };
@@ -185,9 +313,14 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
     setSelectedAnswer(index);
     setIsAnswered(true);
 
-    if (index === currentQuestion.correctAnswer) {
+    const isCorrect = index === currentQuestion.correctAnswer;
+    playAnswerSound(isCorrect);
+
+    if (isCorrect) {
       if (currentPlayer === 1) setPlayer1Score((p) => p + 1);
       else setPlayer2Score((p) => p + 1);
+    } else {
+      rememberMissedQuestion();
     }
     setTimeout(() => moveToNextQuestion(), 2000);
   };
@@ -195,7 +328,7 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
   const moveToNextQuestion = () => {
     const isLastQuestion = currentQuestionIndex >= questions.length - 1;
 
-    if (players === 2 && currentPlayer === 1 && isLastQuestion) {
+    if (effectivePlayers === 2 && currentPlayer === 1 && isLastQuestion) {
       setCurrentPlayer(2);
       setCurrentQuestionIndex(0);
       setSelectedAnswer(null);
@@ -207,11 +340,17 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
       setIsAnswered(false);
       setTimeLeft(30);
     } else {
+      if (isReviewMode) {
+        setPlayer1Questions(reviewOriginalPlayer1Questions);
+        setPlayer2Questions(reviewOriginalPlayer2Questions);
+      }
       setGameFinished(true);
     }
   };
 
   const renderAnswersList = (questionsList: Question[], title: string) => {
+    if (!showAnswers) return null;
+
     return (
       <div className="bg-white rounded-3xl p-4 sm:p-8 shadow-xl border-2 border-slate-200 text-left mt-8">
         <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-6 text-center">{title}</h3>
@@ -236,6 +375,7 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
 
   if (gameFinished) {
     const winner = player1Score > player2Score ? 1 : player2Score > player1Score ? 2 : 0;
+    const resultQuestionCount = isReviewMode ? reviewQuestionCount : player1Questions.length;
     return (
       <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
         <div className="max-w-4xl w-full text-center py-8">
@@ -246,16 +386,17 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
             Igra Završena!
           </h2>
 
-          {players === 1 ? (
+          {effectivePlayers === 1 ? (
             <>
               <div className="bg-white rounded-3xl p-6 sm:p-10 mb-6 shadow-xl border-2 border-blue-200">
                 <p className="text-slate-600 mb-2 text-base sm:text-lg">Vaš Rezultat</p>
                 <p className="text-5xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-                  {player1Score}/{player1Questions.length}
+                  {player1Score}/{resultQuestionCount}
                 </p>
               </div>
 
               {renderAnswersList(player1Questions, 'Sve fraze i tačni odgovori')}
+              {isReviewMode && reviewOriginalPlayers === 2 && renderAnswersList(player2Questions, 'Igrac 2 - fraze i tacni odgovori')}
             </>
           ) : (
             <>
@@ -293,9 +434,25 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
             </>
           )}
 
-          <button onClick={onBackToMenu} className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white px-10 py-4 rounded-2xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg mt-6">
-            Igraj Ponovo
-          </button>
+          <div className="flex flex-col sm:flex-row justify-center gap-3 mt-6">
+            {showAnswers && (
+              <button onClick={onBackToMenu} className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white px-10 py-4 rounded-2xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg">
+                Igraj Ponovo
+              </button>
+            )}
+            {!showAnswers && (
+              <>
+            {missedQuestions.length > 0 && (
+              <button onClick={startReviewMode} className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-10 py-4 rounded-2xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg">
+                Ponovi pogrešene
+              </button>
+            )}
+            <button onClick={() => setShowAnswers(true)} className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white px-10 py-4 rounded-2xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg">
+              Pogledaj sva pitanja i odgovore
+            </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -317,7 +474,7 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
               <span className="text-base sm:text-lg font-bold">{timeLeft}s</span>
             </div>
             
-            {players === 1 ? (
+            {effectivePlayers === 1 ? (
               <div className="flex items-center gap-1.5 bg-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl shadow-md border-2 border-blue-200">
                 <Trophy className="w-4 h-4 sm:w-5 h-5 text-blue-600" />
                 <span className="text-base sm:text-lg font-bold text-slate-900">{player1Score}</span>
@@ -350,10 +507,18 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8 w-full">
         <div className="max-w-4xl w-full flex flex-col items-center">
           
-          {players === 2 && (
+          {effectivePlayers === 2 && (
             <div className="text-center mb-4 sm:mb-6 w-full">
               <p className="inline-block bg-white px-5 py-2.5 rounded-xl shadow-md text-slate-900 font-bold text-base sm:text-lg border-2 border-slate-200">
                 🎮 Igrač {currentPlayer} na potezu
+              </p>
+            </div>
+          )}
+
+          {isReviewMode && (
+            <div className="text-center mb-4 sm:mb-6 w-full">
+              <p className="inline-block bg-emerald-50 px-5 py-2.5 rounded-xl shadow-md text-emerald-700 font-bold text-base sm:text-lg border-2 border-emerald-200">
+                Ponavljanje pogrešenih fraza
               </p>
             </div>
           )}
@@ -392,7 +557,7 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
                   key={index}
                   onClick={() => handleAnswerSelect(index)}
                   disabled={isAnswered}
-                  className={`${buttonClass} rounded-xl sm:rounded-2xl p-4 sm:p-5 text-left transition-all duration-200 disabled:cursor-not-allowed w-full min-h-[72px] flex items-center`}
+                  className={`${buttonClass} ${isAnswered && isCorrect ? 'animate-pulse' : ''} ${isAnswered && isSelected && !isCorrect ? 'animate-bounce' : ''} rounded-xl sm:rounded-2xl p-4 sm:p-5 text-left transition-all duration-200 disabled:cursor-not-allowed w-full min-h-[72px] flex items-center`}
                 >
                   <div className="flex items-center gap-3 sm:gap-4 w-full">
                     <span className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-white text-base sm:text-lg shadow-sm">
