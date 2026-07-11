@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+set -eu
+
+MAVEN_VERSION=3.9.9
+BASE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+MAVEN_HOME="$BASE_DIR/.mvn/apache-maven-$MAVEN_VERSION"
+MAVEN_CMD="$MAVEN_HOME/bin/mvn"
+
+if [ ! -x "$MAVEN_CMD" ]; then
+  echo "Downloading Apache Maven $MAVEN_VERSION..."
+  mkdir -p "$BASE_DIR/.mvn"
+  ZIP="$BASE_DIR/.mvn/apache-maven-$MAVEN_VERSION-bin.zip"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/$MAVEN_VERSION/apache-maven-$MAVEN_VERSION-bin.zip" -o "$ZIP"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/$MAVEN_VERSION/apache-maven-$MAVEN_VERSION-bin.zip" -O "$ZIP"
+  else
+    echo "curl or wget is required to download Maven." >&2
+    exit 1
+  fi
+  unzip -q -o "$ZIP" -d "$BASE_DIR/.mvn"
+  rm -f "$ZIP"
+fi
+
+export MAVEN_OPTS="-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true ${MAVEN_OPTS:-}"
+exec "$MAVEN_CMD" "$@"

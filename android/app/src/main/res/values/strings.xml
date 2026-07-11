@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Phrases Detective</string>
+    <string name="title_activity_main">Phrases Detective</string>
+    <string name="package_name">com.phrasesdetective.app</string>
+    <string name="custom_url_scheme">com.phrasesdetective.app</string>
+</resources>

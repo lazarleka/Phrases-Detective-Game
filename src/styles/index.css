@@ -1,2 +1,31 @@
 @import "tailwindcss";
 @import "./theme.css";
+
+@keyframes versus-fill-winner {
+  from { width: 50%; }
+  to { width: 100%; }
+}
+
+@keyframes versus-fill-loser {
+  from { width: 50%; }
+  to { width: 0%; }
+}
+
+.versus-fill-winner,
+.versus-fill-loser {
+  animation-duration: 1.35s;
+  animation-delay: 0.4s;
+  animation-fill-mode: forwards;
+  animation-timing-function: ease-in-out;
+}
+
+.versus-fill-winner { animation-name: versus-fill-winner; }
+.versus-fill-loser { animation-name: versus-fill-loser; }
+
+@media (prefers-reduced-motion: reduce) {
+  .versus-fill-winner,
+  .versus-fill-loser {
+    animation-delay: 0s;
+    animation-duration: 0.01ms;
+  }
+}

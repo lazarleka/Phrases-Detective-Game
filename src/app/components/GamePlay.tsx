@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Trophy, Clock, User, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { api } from '../api';
 
 const QUESTIONS_PER_PLAYER = 10;
 
@@ -9,6 +10,61 @@ interface Question {
   question: string;
   options: string[];
   correctAnswer: number;
+}
+
+interface AnswerRecord {
+  phrase: string;
+  question: string;
+  selectedAnswer: string | null;
+  correctAnswer: string;
+  correct: boolean;
+  secondsUsed: number;
+}
+
+const FALLBACK_QUESTIONS: Record<'easy' | 'medium' | 'hard', Question[]> = {
+  easy: [
+    { phrase: 'Break a leg', question: 'Šta ova fraza znači?', options: ['Povrijedi se', 'Srećno', 'Trči brzo', 'Odustani'], correctAnswer: 1 },
+    { phrase: 'Piece of cake', question: 'Šta ova fraza znači?', options: ['Nešto veoma lako', 'Sladak poklon', 'Težak zadatak', 'Skup obrok'], correctAnswer: 0 },
+    { phrase: 'Spill the beans', question: 'Šta ova fraza znači?', options: ['Prosuti hranu', 'Otkriti tajnu', 'Skuvati rucak', 'Sakriti dokaz'], correctAnswer: 1 },
+    { phrase: 'Hit the road', question: 'Šta ova fraza znači?', options: ['Krenuti na put', 'Popraviti ulicu', 'Pasti na testu', 'Voziti prebrzo'], correctAnswer: 0 },
+    { phrase: 'Call it a day', question: 'Šta ova fraza znači?', options: ['Nazvati nekoga', 'Završiti posao za danas', 'Planirati dan', 'Kasniti na sastanak'], correctAnswer: 1 },
+    { phrase: 'Under the weather', question: 'Šta ova fraza znači?', options: ['Biti bolestan', 'Stajati na kisi', 'Putovati avionom', 'Gledati prognozu'], correctAnswer: 0 },
+    { phrase: 'Cost an arm and a leg', question: 'Šta ova fraza znači?', options: ['Biti veoma skupo', 'Biti opasno', 'Biti besplatno', 'Biti kratko'], correctAnswer: 0 },
+    { phrase: 'No worries', question: 'Šta ova fraza znači?', options: ['Nema problema', 'Mnogo briga', 'Ne sjećam se', 'Nema vremena'], correctAnswer: 0 },
+    { phrase: 'Keep an eye on', question: 'Šta ova fraza znači?', options: ['Paziti na nešto', 'Zatvoriti oči', 'Kupiti naočare', 'Ignorisati problem'], correctAnswer: 0 },
+    { phrase: 'Better late than never', question: 'Šta ova fraza znači?', options: ['Bolje ikad nego nikad', 'Nikad ne kasni', 'Kasno je bolje od rano', 'Vrijeme je novac'], correctAnswer: 0 },
+  ],
+  medium: [
+    { phrase: 'Bite the bullet', question: 'Šta ova fraza znači?', options: ['Prihvatiti nešto teško', 'Napraviti grešku', 'Kupiti oruzje', 'Prekinuti raspravu'], correctAnswer: 0 },
+    { phrase: 'Cut corners', question: 'Šta ova fraza znači?', options: ['Raditi površno da se uštedi', 'Urediti sobu', 'Pobijediti u trci', 'Promijeniti pravac'], correctAnswer: 0 },
+    { phrase: 'On thin ice', question: 'Šta ova fraza znači?', options: ['U rizičnoj situaciji', 'Na zimovanju', 'Veoma smiren', 'Bez dokaza'], correctAnswer: 0 },
+    { phrase: 'Go the extra mile', question: 'Šta ova fraza znači?', options: ['Dodatno se potruditi', 'Putovati dalje', 'Kasniti namjerno', 'Zaobići pravila'], correctAnswer: 0 },
+    { phrase: 'A blessing in disguise', question: 'Šta ova fraza znači?', options: ['Skrivena sreća u lošem događaju', 'Maskirana osoba', 'Lažno obećanje', 'Brza odluka'], correctAnswer: 0 },
+    { phrase: 'The ball is in your court', question: 'Šta ova fraza znači?', options: ['Na tebi je da odlučiš', 'Igraš sport', 'Propustio si šansu', 'Neko te krivi'], correctAnswer: 0 },
+    { phrase: 'Burn bridges', question: 'Šta ova fraza znači?', options: ['Uništiti odnose', 'Započeti putovanje', 'Sakriti tragove', 'Raditi noću'], correctAnswer: 0 },
+    { phrase: 'Miss the boat', question: 'Šta ova fraza znači?', options: ['Propustiti priliku', 'Putovati brodom', 'Izgubiti kartu', 'Promašiti cilj'], correctAnswer: 0 },
+    { phrase: 'Pull yourself together', question: 'Šta ova fraza znači?', options: ['Saberi se', 'Udruži se sa nekim', 'Povuci nešto jako', 'Odmori se'], correctAnswer: 0 },
+    { phrase: 'Take it with a grain of salt', question: 'Šta ova fraza znači?', options: ['Ne vjerovati potpuno', 'Dodati začine', 'Prihvatiti savjet odmah', 'Ljutiti se'], correctAnswer: 0 },
+  ],
+  hard: [
+    { phrase: 'Throw in the towel', question: 'Šta ova fraza znači?', options: ['Odustati', 'Početi takmičenje', 'Pomoći nekome', 'Sakriti dokaz'], correctAnswer: 0 },
+    { phrase: 'Barking up the wrong tree', question: 'Šta ova fraza znači?', options: ['Kriviti pogrešnu stvar ili osobu', 'Gubiti vrijeme u prirodi', 'Biti previše glasan', 'Tražiti savjet'], correctAnswer: 0 },
+    { phrase: 'Burn the midnight oil', question: 'Šta ova fraza znači?', options: ['Raditi do kasno u noć', 'Trošiti novac', 'Spavati duboko', 'Kuvati večeru'], correctAnswer: 0 },
+    { phrase: 'Caught between two stools', question: 'Šta ova fraza znači?', options: ['Propasti birajući između dvije opcije', 'Sjedjeti neudobno', 'Biti uhvaćen u laži', 'Izbjeći odluku'], correctAnswer: 0 },
+    { phrase: 'A storm in a teacup', question: 'Šta ova fraza znači?', options: ['Velika drama oko male stvari', 'Opasna situacija', 'Loša prognoza', 'Skrivene emocije'], correctAnswer: 0 },
+    { phrase: 'Pay through the nose', question: 'Šta ova fraza znači?', options: ['Platiti previše', 'Platiti unaprijed', 'Dugovati novac', 'Pregovarati uspješno'], correctAnswer: 0 },
+    { phrase: 'Move the goalposts', question: 'Šta ova fraza znači?', options: ['Promijeniti pravila tokom igre', 'Postići cilj', 'Odloziti utakmicu', 'Pomjeriti namještaj'], correctAnswer: 0 },
+    { phrase: 'Have a chip on your shoulder', question: 'Šta ova fraza znači?', options: ['Biti lako uvredljiv', 'Nositi teret', 'Biti veoma ponosan', 'Čuvati tajnu'], correctAnswer: 0 },
+    { phrase: 'Open a can of worms', question: 'Šta ova fraza znači?', options: ['Pokrenuti komplikovan problem', 'Naći jednostavno rješenje', 'Otvoriti poklon', 'Započeti šalu'], correctAnswer: 0 },
+    { phrase: "Steal someone's thunder", question: 'Šta ova fraza znači?', options: ['Preuzeti tuđu pažnju ili zasluge', 'Uplašiti nekoga', 'Ukrasti nešto vrijedno', 'Govoriti glasno'], correctAnswer: 0 },
+  ],
+};
+
+function fallbackQuestions(difficulty: 'easy' | 'medium' | 'hard'): Question[] {
+  return randomizeCorrectAnswerPositions(FALLBACK_QUESTIONS[difficulty].map((question) => ({
+    ...question,
+    options: [...question.options],
+  })));
 }
 
 function placeCorrectAnswerAtPosition(question: Question, targetPosition: number): Question {
@@ -87,83 +143,36 @@ interface GamePlayProps {
   difficulty: 'easy' | 'medium' | 'hard';
   players: 1 | 2;
   onBackToMenu: () => void;
+  onGameComplete: (result: {
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    mode: 'SOLO' | 'VERSUS';
+    score: number;
+    totalQuestions: number;
+    durationSeconds: number;
+    bonusPoints?: number;
+    maxStreak?: number;
+    answerHistoryJson?: string;
+  }) => Promise<void>;
+  onExitGame?: (result: {
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    mode: 'SOLO' | 'VERSUS';
+    score: number;
+    totalQuestions: number;
+    durationSeconds: number;
+    bonusPoints?: number;
+    maxStreak?: number;
+    answerHistoryJson?: string;
+  }) => Promise<void>;
+  initialQuestions?: Question[];
+  hideCompletionScreen?: boolean;
 }
 
-async function fetchQuestionsFromAI(difficulty: 'easy' | 'medium' | 'hard', playerNum: number | null): Promise<Question[]> {
-  const difficultyDesc = {
-    easy: 'very common and well-known English idioms and phrases (beginner level)',
-    medium: 'moderately common English idioms and phrases (intermediate level)',
-    hard: 'less common or complex English idioms and phrases (advanced level)',
-  }[difficulty];
-
-  const prompt = `Generate exactly ${QUESTIONS_PER_PLAYER} multiple choice questions about ${difficultyDesc}.
-${playerNum ? `These are for Player ${playerNum} - use completely different phrases than other players.` : ''}
-
-Return ONLY a valid JSON array, no other text.
-
-Each question must have:
-- phrase: the English idiom or phrase
-- question: a question in Serbian asking what it means
-- options: array of exactly 4 answer choices in Serbian, never 3 and never 5
-- correctAnswer: index (0-3) of the correct option
-
-Rules for answer choices:
-- The 3 incorrect options must be plausible Serbian meanings for a similar idiom or phrase.
-- Do not use silly, random, or obviously wrong distractors.
-- Keep all 4 options similar in length and style so the correct answer is not easy to guess.
-
-Example:
-[{"phrase":"Break a leg","question":"Šta ova fraza znači?","options":["Povredi se","Srećno","Trči brzo","Pleši"],"correctAnswer":1}]`;
-
-  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
-
- const response = await fetch(url, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-goog-api-key': API_KEY,
-  },
-  body: JSON.stringify({
-    contents: [
-      {
-        parts: [{ text: prompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: 3000,
-      responseMimeType: 'application/json',
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
-    },
-  }),
-});
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error('Gemini API Error:', data);
-    throw new Error(data?.error?.message || 'API request failed');
+export async function fetchQuestionsFromAI(difficulty: 'easy' | 'medium' | 'hard', playerNum: number | null): Promise<Question[]> {
+  try {
+    return await api.questions(difficulty);
+  } catch {
+    return fallbackQuestions(difficulty);
   }
-
-  let text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text) {
-    throw new Error('No text returned from AI');
-  }
-
-  text = text.replace(/```json|```/g, '').trim();
-  const start = text.indexOf('[');
-  const end = text.lastIndexOf(']');
-
-  if (start !== -1 && end !== -1) {
-    text = text.substring(start, end + 1);
-  }
-
-  return randomizeCorrectAnswerPositions(JSON.parse(text) as Question[]);
 }
 
 function LoadingScreen({ message }: { message: string }) {
@@ -193,7 +202,27 @@ function ErrorScreen({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
+function ApiErrorScreen({ onRetry, onBack }: { onRetry: () => void; onBack: () => void }) {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+      <div className="text-center max-w-md w-full">
+        <p className="text-6xl mb-6">!</p>
+        <p className="text-2xl font-bold text-slate-700 mb-3">Greska pri ucitavanju</p>
+        <p className="text-slate-500 mb-8">Nije moguce pripremiti pitanja. Pokusaj opet ili se vrati na pocetnu.</p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button onClick={onRetry} className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all">
+            Pokusaj opet
+          </button>
+          <button onClick={onBack} className="w-full sm:w-auto bg-white border-2 border-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-bold text-lg hover:border-blue-400 transition-all">
+            Nazad
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function GamePlay({ difficulty, players, onBackToMenu, onGameComplete, onExitGame, initialQuestions, hideCompletionScreen = false }: GamePlayProps) {
   const [player1Questions, setPlayer1Questions] = useState<Question[]>([]);
   const [player2Questions, setPlayer2Questions] = useState<Question[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -211,9 +240,21 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
   const [isReviewMode, setIsReviewMode] = useState<boolean>(false);
   const [reviewOriginalPlayer1Questions, setReviewOriginalPlayer1Questions] = useState<Question[]>([]);
   const [reviewOriginalPlayer2Questions, setReviewOriginalPlayer2Questions] = useState<Question[]>([]);
+  const [reviewOriginalPlayer1Score, setReviewOriginalPlayer1Score] = useState<number>(0);
+  const [reviewOriginalPlayer2Score, setReviewOriginalPlayer2Score] = useState<number>(0);
   const [reviewOriginalPlayers, setReviewOriginalPlayers] = useState<1 | 2>(1);
   const [reviewQuestionCount, setReviewQuestionCount] = useState<number>(0);
   const [showAnswers, setShowAnswers] = useState<boolean>(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [bonusPoints, setBonusPoints] = useState<number>(0);
+  const [currentStreak, setCurrentStreak] = useState<number>(0);
+  const [bestStreak, setBestStreak] = useState<number>(0);
+  const [answerHistory, setAnswerHistory] = useState<AnswerRecord[]>([]);
+  const gameStartedAt = useRef<number>(Date.now());
+  const resultReported = useRef<boolean>(false);
+  const exitReported = useRef<boolean>(false);
+  const resultMode = hideCompletionScreen || players === 2 ? 'VERSUS' : 'SOLO';
+  const reportedScore = hideCompletionScreen ? player1Score + bonusPoints : player1Score;
 
   const loadQuestions = async () => {
     setLoading(true);
@@ -222,6 +263,8 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
     setIsReviewMode(false);
     setReviewOriginalPlayer1Questions([]);
     setReviewOriginalPlayer2Questions([]);
+    setReviewOriginalPlayer1Score(0);
+    setReviewOriginalPlayer2Score(0);
     setReviewOriginalPlayers(players);
     setReviewQuestionCount(0);
     setShowAnswers(false);
@@ -233,19 +276,27 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
     setIsAnswered(false);
     setTimeLeft(30);
     setGameFinished(false);
+    setSaveStatus('idle');
+    setBonusPoints(0);
+    setCurrentStreak(0);
+    setBestStreak(0);
+    setAnswerHistory([]);
+    resultReported.current = false;
+    exitReported.current = false;
+    gameStartedAt.current = Date.now();
     try {
-      if (players === 2) {
-        const [q1, q2] = await Promise.all([
-          fetchQuestionsFromAI(difficulty, 1),
-          fetchQuestionsFromAI(difficulty, 2),
-        ]);
+      if (initialQuestions?.length) {
+        setPlayer1Questions(initialQuestions);
+        setPlayer2Questions(players === 2 ? initialQuestions : []);
+      } else if (players === 2) {
+        const q1 = await fetchQuestionsFromAI(difficulty, null);
         setPlayer1Questions(q1);
-        setPlayer2Questions(q2);
+        setPlayer2Questions(q1);
       } else {
         const q = await fetchQuestionsFromAI(difficulty, null);
         setPlayer1Questions(q);
       }
-    } catch (e) {
+    } catch {
       setError(true);
     } finally {
       setLoading(false);
@@ -256,7 +307,29 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
     loadQuestions();
   }, []);
 
+  useEffect(() => {
+    if (!gameFinished || isReviewMode || resultReported.current) return;
+
+    resultReported.current = true;
+    setSaveStatus('saving');
+    onGameComplete({
+      difficulty: difficulty.toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
+      mode: resultMode,
+      score: reportedScore,
+      totalQuestions: player1Questions.length,
+      durationSeconds: Math.max(0, Math.round((Date.now() - gameStartedAt.current) / 1000)),
+      bonusPoints,
+      maxStreak: bestStreak,
+      answerHistoryJson: JSON.stringify(answerHistory),
+    })
+      .then(() => setSaveStatus('saved'))
+      .catch(() => setSaveStatus('error'));
+  }, [gameFinished, isReviewMode, difficulty, resultMode, reportedScore, player1Questions.length, bonusPoints, bestStreak, answerHistory, onGameComplete]);
+
   const effectivePlayers = isReviewMode ? 1 : players;
+  const showSoloBonuses = effectivePlayers === 1 && !isReviewMode;
+  const visiblePlayer1Score = isReviewMode ? reviewOriginalPlayer1Score : player1Score;
+  const visiblePlayer2Score = isReviewMode ? reviewOriginalPlayer2Score : player2Score;
   const questions = currentPlayer === 1 ? player1Questions : player2Questions;
   const currentQuestion = questions[currentQuestionIndex];
 
@@ -275,15 +348,32 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
   }, [isAnswered, currentQuestionIndex, gameFinished, loading, currentPlayer, currentQuestion]);
 
   const rememberMissedQuestion = () => {
-    if (!currentQuestion) return;
+    if (!currentQuestion || isReviewMode) return;
     setMissedQuestions((previous) => [...previous, currentQuestion]);
   };
 
+  const rememberAnswer = (selectedIndex: number | null, isCorrect: boolean) => {
+    if (!currentQuestion || currentPlayer !== 1 || isReviewMode) return;
+    setAnswerHistory((previous) => [
+      ...previous,
+      {
+        phrase: currentQuestion.phrase,
+        question: currentQuestion.question,
+        selectedAnswer: selectedIndex == null ? null : currentQuestion.options[selectedIndex],
+        correctAnswer: currentQuestion.options[currentQuestion.correctAnswer],
+        correct: isCorrect,
+        secondsUsed: 30 - timeLeft,
+      },
+    ]);
+  };
+
   const startReviewMode = () => {
-    if (missedQuestions.length === 0) return;
+    if (isReviewMode || missedQuestions.length === 0) return;
 
     setReviewOriginalPlayer1Questions(player1Questions);
     setReviewOriginalPlayer2Questions(player2Questions);
+    setReviewOriginalPlayer1Score(player1Score);
+    setReviewOriginalPlayer2Score(player2Score);
     setReviewOriginalPlayers(players);
     setReviewQuestionCount(missedQuestions.length);
     setPlayer1Questions(randomizeCorrectAnswerPositions(missedQuestions));
@@ -299,11 +389,27 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
     setIsReviewMode(true);
     setShowAnswers(false);
     setMissedQuestions([]);
+    setBonusPoints(0);
+    setCurrentStreak(0);
+    setBestStreak(0);
   };
 
   const handleTimeout = () => {
     playAnswerSound(false);
     rememberMissedQuestion();
+    rememberAnswer(null, false);
+    setCurrentStreak(0);
+    setIsAnswered(true);
+    setTimeout(() => moveToNextQuestion(), 2000);
+  };
+
+  const handleDontKnow = () => {
+    if (isAnswered) return;
+    playAnswerSound(false);
+    rememberMissedQuestion();
+    rememberAnswer(null, false);
+    setCurrentStreak(0);
+    setSelectedAnswer(null);
     setIsAnswered(true);
     setTimeout(() => moveToNextQuestion(), 2000);
   };
@@ -315,14 +421,51 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
 
     const isCorrect = index === currentQuestion.correctAnswer;
     playAnswerSound(isCorrect);
+    rememberAnswer(index, isCorrect);
 
     if (isCorrect) {
-      if (currentPlayer === 1) setPlayer1Score((p) => p + 1);
-      else setPlayer2Score((p) => p + 1);
+      if (!isReviewMode) {
+        if (currentPlayer === 1) setPlayer1Score((p) => p + 1);
+        else setPlayer2Score((p) => p + 1);
+      }
+      if (showSoloBonuses) {
+        const nextStreak = currentStreak + 1;
+        const speedBonus = timeLeft >= 20 ? 1 : 0;
+        const streakBonus = nextStreak > 0 && nextStreak % 3 === 0 ? 1 : 0;
+        setCurrentStreak(nextStreak);
+        setBestStreak((previous) => Math.max(previous, nextStreak));
+        setBonusPoints((previous) => previous + speedBonus + streakBonus);
+      }
     } else {
       rememberMissedQuestion();
+      setCurrentStreak(0);
     }
     setTimeout(() => moveToNextQuestion(), 2000);
+  };
+
+  const buildCurrentResult = () => ({
+    difficulty: difficulty.toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
+    mode: resultMode as 'SOLO' | 'VERSUS',
+    score: reportedScore,
+    totalQuestions: player1Questions.length,
+    durationSeconds: Math.max(0, Math.round((Date.now() - gameStartedAt.current) / 1000)),
+    bonusPoints,
+    maxStreak: bestStreak,
+    answerHistoryJson: JSON.stringify(answerHistory),
+  });
+
+  const handleExit = async () => {
+    if (onExitGame && !gameFinished && !isReviewMode && !exitReported.current) {
+      exitReported.current = true;
+      setSaveStatus('saving');
+      try {
+        await onExitGame(buildCurrentResult());
+        setSaveStatus('saved');
+      } catch {
+        setSaveStatus('error');
+      }
+    }
+    onBackToMenu();
   };
 
   const moveToNextQuestion = () => {
@@ -343,6 +486,9 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
       if (isReviewMode) {
         setPlayer1Questions(reviewOriginalPlayer1Questions);
         setPlayer2Questions(reviewOriginalPlayer2Questions);
+        setPlayer1Score(reviewOriginalPlayer1Score);
+        setPlayer2Score(reviewOriginalPlayer2Score);
+        setMissedQuestions([]);
       }
       setGameFinished(true);
     }
@@ -371,11 +517,17 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
   };
 
   if (loading) return <LoadingScreen message="Pripremamo pitanja..."/>;
-  if (error) return <ErrorScreen onRetry={loadQuestions}/>;
+  if (error) return <ApiErrorScreen onRetry={loadQuestions} onBack={onBackToMenu}/>;
+
+  if (gameFinished && hideCompletionScreen) {
+    return <LoadingScreen message="Cuvamo Versus rezultat..."/>;
+  }
 
   if (gameFinished) {
-    const winner = player1Score > player2Score ? 1 : player2Score > player1Score ? 2 : 0;
-    const resultQuestionCount = isReviewMode ? reviewQuestionCount : player1Questions.length;
+    const displayPlayer1Score = isReviewMode ? reviewOriginalPlayer1Score : player1Score;
+    const displayPlayer2Score = isReviewMode ? reviewOriginalPlayer2Score : player2Score;
+    const winner = displayPlayer1Score > displayPlayer2Score ? 1 : displayPlayer2Score > displayPlayer1Score ? 2 : 0;
+    const resultQuestionCount = isReviewMode ? reviewOriginalPlayer1Questions.length : player1Questions.length;
     return (
       <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
         <div className="max-w-4xl w-full text-center py-8">
@@ -391,12 +543,24 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
               <div className="bg-white rounded-3xl p-6 sm:p-10 mb-6 shadow-xl border-2 border-blue-200">
                 <p className="text-slate-600 mb-2 text-base sm:text-lg">Vaš Rezultat</p>
                 <p className="text-5xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-                  {player1Score}/{resultQuestionCount}
+                  {displayPlayer1Score}/{resultQuestionCount}
                 </p>
+                {showSoloBonuses && (
+                  <div className="grid grid-cols-2 gap-3 mt-6 text-left">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500">Bonus poeni</p>
+                      <p className="text-2xl font-black text-blue-700">+{bonusPoints}</p>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                      <p className="text-xs font-bold text-slate-500">Najduži niz</p>
+                      <p className="text-2xl font-black text-emerald-700">{bestStreak}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {renderAnswersList(player1Questions, 'Sve fraze i tačni odgovori')}
-              {isReviewMode && reviewOriginalPlayers === 2 && renderAnswersList(player2Questions, 'Igrac 2 - fraze i tacni odgovori')}
+              {isReviewMode && reviewOriginalPlayers === 2 && renderAnswersList(player2Questions, 'Igrač 2 - fraze i tačni odgovori')}
             </>
           ) : (
             <>
@@ -409,7 +573,7 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
                       </div>
                       <span className="text-slate-900 font-bold text-lg">Igrač 1</span>
                     </div>
-                    <span className="text-3xl font-black text-slate-900">{player1Score}</span>
+                    <span className="text-3xl font-black text-slate-900">{displayPlayer1Score}</span>
                   </div>
                   {winner === 1 && <p className="text-blue-600 font-bold text-base mt-3 flex items-center justify-center gap-2"><Trophy className="w-4 h-4" /> Pobednik!</p>}
                 </div>
@@ -422,7 +586,7 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
                       </div>
                       <span className="text-slate-900 font-bold text-lg">Igrač 2</span>
                     </div>
-                    <span className="text-3xl font-black text-slate-900">{player2Score}</span>
+                    <span className="text-3xl font-black text-slate-900">{displayPlayer2Score}</span>
                   </div>
                   {winner === 2 && <p className="text-purple-600 font-bold text-base mt-3 flex items-center justify-center gap-2"><Trophy className="w-4 h-4" /> Pobednik!</p>}
                 </div>
@@ -453,6 +617,13 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
               </>
             )}
           </div>
+          {!isReviewMode && saveStatus !== 'idle' && (
+            <p className={`mt-4 text-sm font-semibold ${saveStatus === 'error' ? 'text-red-600' : 'text-slate-500'}`}>
+              {saveStatus === 'saving' && 'Čuvanje rezultata...'}
+              {saveStatus === 'saved' && 'Rezultat je sačuvan na scoreboardu.'}
+              {saveStatus === 'error' && 'Rezultat nije sačuvan. Provjerite da li backend radi.'}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -463,31 +634,39 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
       {/* Top Bar */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200 px-4 sm:px-8 py-4 shadow-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-          <button onClick={onBackToMenu} className="inline-flex items-center gap-1 sm:vgap-2 text-slate-600 hover:text-slate-900 transition-colors font-medium group text-sm sm:text-base">
+          <button onClick={handleExit} className="inline-flex items-center gap-1 sm:vgap-2 text-slate-600 hover:text-slate-900 transition-colors font-medium group text-sm sm:text-base">
             <ArrowLeft className="w-4 h-4 sm:w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span>Izlaz</span>
           </button>
           
-          <div className="flex items-center gap-3 sm:gap-6">
-            <div className="flex items-center gap-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl shadow-md">
+          <div className="flex items-center gap-2 sm:gap-6">
+            <div className="h-10 sm:h-12 flex items-center gap-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-3 sm:px-4 rounded-xl shadow-md">
               <Clock className="w-4 h-4 sm:w-5 h-5" />
               <span className="text-base sm:text-lg font-bold">{timeLeft}s</span>
             </div>
             
             {effectivePlayers === 1 ? (
-              <div className="flex items-center gap-1.5 bg-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl shadow-md border-2 border-blue-200">
-                <Trophy className="w-4 h-4 sm:w-5 h-5 text-blue-600" />
-                <span className="text-base sm:text-lg font-bold text-slate-900">{player1Score}</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="h-10 sm:h-12 flex items-center gap-1.5 bg-white px-3 sm:px-4 rounded-xl shadow-md border-2 border-blue-200">
+                  <Trophy className="w-4 h-4 sm:w-5 h-5 text-blue-600" />
+                  <span className="text-base sm:text-lg font-bold text-slate-900">{visiblePlayer1Score}</span>
+                </div>
+                {showSoloBonuses && (
+                  <div className="h-10 sm:h-12 flex items-center gap-1.5 bg-white px-3 sm:px-4 rounded-xl shadow-md border-2 border-purple-200 whitespace-nowrap">
+                    <span className="text-xs sm:text-sm font-bold text-purple-700">Niz {currentStreak}</span>
+                    <span className="text-xs sm:text-sm font-bold text-blue-700">+{bonusPoints}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2 text-xs sm:text-sm">
                 <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl shadow-md border-2 ${currentPlayer === 1 ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-400' : 'bg-white text-slate-900 border-slate-200'}`}>
                   <User className="w-3.5 h-3.5" />
-                  <span className="font-bold">I1: {player1Score}</span>
+                  <span className="font-bold">I1: {visiblePlayer1Score}</span>
                 </div>
                 <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl shadow-md border-2 ${currentPlayer === 2 ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-400' : 'bg-white text-slate-900 border-slate-200'}`}>
                   <User className="w-3.5 h-3.5" />
-                  <span className="font-bold">I2: {player2Score}</span>
+                  <span className="font-bold">I2: {visiblePlayer2Score}</span>
                 </div>
               </div>
             )}
@@ -572,6 +751,16 @@ export function GamePlay({ difficulty, players, onBackToMenu }: GamePlayProps) {
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={handleDontKnow}
+              disabled={isAnswered}
+              className="w-full sm:w-auto rounded-xl border-2 border-slate-200 bg-white px-6 py-3 text-sm sm:text-base font-black text-slate-600 shadow-sm transition-all hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Ne znam
+            </button>
           </div>
 
         </div>
